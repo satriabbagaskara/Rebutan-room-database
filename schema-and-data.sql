@@ -1018,3 +1018,93 @@ INSERT INTO persetujuan (idPersetujuan, idDetailPeminjaman, idAdmin, waktuPerset
 (38, 38, 37, '2025-02-09 09:00:00', 'Disetujui'),
 (39, 43, 3, '2025-02-19 09:00:00', 'Ditolak'),
 (40, 44, 4, '2025-02-19 09:30:00', 'Ditolak');
+
+/* === PENAMBAHAN ISI DATABASE TAMBAHAN === */
+
+/* =====================================================================
+   1. gedungUmum  -> semua gedung yang idFakultas-nya NULL
+   ===================================================================== */
+INSERT INTO gedungUmum (idGedung)
+SELECT idGedung
+FROM gedung
+WHERE idFakultas IS NULL
+  AND idGedung NOT IN (SELECT idGedung FROM gedungUmum);
+
+/* =====================================================================
+   2. gedungKhusus -> semua gedung yang punya idFakultas
+   ===================================================================== */
+INSERT INTO gedungKhusus (idGedung, idFakultas)
+SELECT idGedung, idFakultas
+FROM gedung
+WHERE idFakultas IS NOT NULL
+  AND idGedung NOT IN (SELECT idGedung FROM gedungKhusus);
+
+/* =====================================================================
+   3. detailAdminGdg -> admin yang terikat ke gedung tertentu
+   ===================================================================== */
+INSERT IGNORE INTO detailAdminGdg (idGedung, idAdmin)
+SELECT idGedung, idAdmin
+FROM roleAdmin
+WHERE idGedung IS NOT NULL;
+
+/* Admin tingkat fakultas (idGedung NULL, idFakultas terisi) mengelola
+   semua gedung milik fakultasnya */
+INSERT IGNORE INTO detailAdminGdg (idGedung, idAdmin)
+SELECT g.idGedung, ra.idAdmin
+FROM roleAdmin ra
+JOIN gedung g ON g.idFakultas = ra.idFakultas
+WHERE ra.idGedung IS NULL
+  AND ra.idFakultas IS NOT NULL;
+
+/* =====================================================================
+   4. detailAdminFkt -> admin yang terikat ke fakultas tertentu
+   ===================================================================== */
+INSERT IGNORE INTO detailAdminFkt (idFakultas, idAdmin)
+SELECT idFakultas, idAdmin
+FROM roleAdmin
+WHERE idFakultas IS NOT NULL;
+
+/* =====================================================================
+   5. detailFasilitas -> lengkapi ruangan yang belum punya fasilitas
+      (INSERT IGNORE: baris lama tidak ditimpa / tidak error)
+      jumlah = -1 artinya "sebanyak kapasitas ruangan"
+   ===================================================================== */
+INSERT IGNORE INTO detailFasilitas (idFasilitas, idRuangan, jumlahFasilitas)
+SELECT m.idFasilitas, r.idRuangan, IF(m.jumlah = -1, r.kapasitas, m.jumlah)
+FROM ruangan r
+JOIN (
+    /* Kelas */
+    SELECT 'Kelas' AS kategori, 1 AS idFasilitas, 1 AS jumlah
+    UNION ALL SELECT 'Kelas', 2, 2
+    UNION ALL SELECT 'Kelas', 3, 1
+    UNION ALL SELECT 'Kelas', 6, -1
+    UNION ALL SELECT 'Kelas', 36, 1
+    UNION ALL SELECT 'Kelas', 37, 1
+    /* Laboratorium */
+    UNION ALL SELECT 'Laboratorium', 3, 1
+    UNION ALL SELECT 'Laboratorium', 5, -1
+    UNION ALL SELECT 'Laboratorium', 6, -1
+    UNION ALL SELECT 'Laboratorium', 19, 10
+    UNION ALL SELECT 'Laboratorium', 20, 1
+    /* Seminar */
+    UNION ALL SELECT 'Seminar', 1, 2
+    UNION ALL SELECT 'Seminar', 3, 2
+    UNION ALL SELECT 'Seminar', 6, -1
+    UNION ALL SELECT 'Seminar', 8, 2
+    UNION ALL SELECT 'Seminar', 9, 2
+    UNION ALL SELECT 'Seminar', 10, 2
+    /* Aula */
+    UNION ALL SELECT 'Aula', 1, 4
+    UNION ALL SELECT 'Aula', 3, 4
+    UNION ALL SELECT 'Aula', 6, -1
+    UNION ALL SELECT 'Aula', 8, 4
+    UNION ALL SELECT 'Aula', 9, 4
+    UNION ALL SELECT 'Aula', 61, 1
+    /* Rapat */
+    UNION ALL SELECT 'Rapat', 3, 1
+    UNION ALL SELECT 'Rapat', 13, 1
+    UNION ALL SELECT 'Rapat', 41, 1
+    UNION ALL SELECT 'Rapat', 42, -1
+    UNION ALL SELECT 'Rapat', 48, 1
+) m ON m.kategori = r.kategoriRuangan;
+
